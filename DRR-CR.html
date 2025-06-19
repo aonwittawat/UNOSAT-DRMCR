@@ -40,6 +40,25 @@
       box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
     }
 
+    /* 1) columns become flex-containers */
+    .card-container .col-md-4 {
+      display: flex;
+    }
+
+    /* 2) cards stretch to fill their column */
+    .card-container .col-md-4 calcite-card {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    /* 3) normalize thumbnail heights (optional) */
+    calcite-card img[slot="thumbnail"] {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+    }    
+
     .filter-panel {
       padding: 1rem;
       background: #f9f9f9;
