@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geospatial Web Applications</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+  <script type="module" src="https://js.arcgis.com/calcite-components/3.2.1/calcite.esm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <style>
+    body {
+      position: relative;
+      font-family: 'Roboto', sans-serif;
+    }
+
+    nav.sticky-top {
+      background-color: #3E8EDE;
+      z-index: 1030;
+    }
+
+    nav.sticky-top a {
+      color: white;
+    }
+
+    nav.sticky-top a.active {
+      background-color: white;
+      color: #3E8EDE !important;
+      font-weight: 600;
+    }
+
+    #viewDiv {
+      width: 100%;
+      height: 400px;
+    }
+
+    .card {
+      border-radius: 1rem;
+      box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    }
+
+    .filter-panel {
+      padding: 1rem;
+      background: #f9f9f9;
+      border: 1px solid #ccc;
+      border-radius: 1rem;
+      margin-right: 1rem;
+      min-width: 280px;
+      max-width: 350px;
+    }
+
+    .subdomain-container {
+      margin-left: 1rem;
+    }
+
+    .country-filters label {
+      display: block;
+      margin: 0.25rem 0;
+    }
+
+    calcite-pagination {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .app-layout {
+        flex-direction: column;
+      }
+
+      .filter-panel {
+        margin-bottom: 1rem;
+        margin-right: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="text-white py-5 text-center" style="background-color: #3E8EDE;">
+    <div class="container">
+      <img src="./UNITAR_UNOSAT_Standard_White_Version.png" alt="UNOSAT Logo"
+        style="max-width: 500px; margin-bottom: 1rem;">
+      <h1 class="display-5">Geospatial Web Applications</h1>
+      <p class="lead">Explore interactive tools for risk-informed decision-making by UNOSAT, UNITAR</p>
+    </div>
+  </header>
+  <section class="bg-white py-4 border-bottom">
+    <div class="container text-center">
+      <p class="mb-0 text-muted">UNOSAT delivers cutting-edge geospatial solutions for disaster resilience and
+        sustainable development</p>
+    </div>
+  </section>
+  <nav id="groupNav" class="sticky-top py-2 shadow-sm">
+    <div class="container d-flex flex-wrap justify-content-center gap-2">
+      <a class="btn btn-outline-light btn-sm fw-bold border-white" href="#map">Map</a>
+      <a class="btn btn-outline-light btn-sm fw-bold border-white" href="#app">UNOSAT Frontier Analytics</a>
+    </div>
+  </nav>
+
+  <!-- Map Section -->
+  <section id="map" class="py-5 bg-light">
+    <div class="container">
+      <div id="viewDiv"></div>
+    </div>
+  </section>
+
+  <main class="container my-5" id="app">
+    <div class="d-flex app-layout">
+      <div class="filter-panel">
+        <div class="clear-button-wrapper mb-3">
+          <calcite-button id="clear-filters" appearance="outline" kind="inverse" width="full">Clear All
+            Filters</calcite-button>
+        </div>
+        <calcite-accordion scale="m">
+          <calcite-accordion-item heading="Search" icon-start="search" expanded>
+            <calcite-input id="text-search" placeholder="Search by title or description"></calcite-input>
+          </calcite-accordion-item>
+          <calcite-accordion-item heading="FILTER BY COUNTRY" icon-start="globe" expanded>
+            <div class="country-filters"></div>
+          </calcite-accordion-item>
+          <calcite-accordion-item heading="FILTER BY THEMATIC AREA" icon-start="select-category" expanded>
+            <div class="domain-filters"></div>
+          </calcite-accordion-item>
+          <calcite-accordion-item heading="FILTER BY PARTNER AGENCY" icon-start="partner" expanded>
+            <div class="partner-filters"></div>
+          </calcite-accordion-item>
+        </calcite-accordion>
+      </div>
+      <div class="flex-grow-1">
+        <div class="row card-container"></div>
+        <calcite-pagination id="pagination" page-size="10" start-item="1"
+          style="visibility:hidden"></calcite-pagination>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-light py-4 text-center">
+    <div class="container">
+      <img src="https://www.unosat.org/themes/unosat/logo.svg" alt="UNOSAT Footer Logo"
+        style="max-height: 40px; margin-bottom: 0.5rem;">
+      <p class="mb-1">&copy; 2025 UNOSAT | United Nations Institute for Training and Research (UNITAR)</p>
+      <small class="text-muted">For questions, contact: <a href="mailto:unosat@unitar.org">unosat@unitar.org</a></small>
+    </div>
+  </footer>
+
+  <script type="module">
+    const csvUrl = "https://raw.githubusercontent.com/aonwittawat/LAO-SDC/refs/heads/main/Geospatial%20Web%20Solutions.csv";
+    const cardContainer = document.querySelector(".card-container");
+    const countryContainer = document.querySelector(".country-filters");
+    const domainContainer = document.querySelector(".domain-filters");
+    const partnerContainer = document.querySelector(".partner-filters");
+    const textSearchInput = document.getElementById("text-search");
+    const pagination = document.getElementById("pagination");
+    const pageSize = parseInt(pagination.getAttribute("page-size"), 10);
+    let allItems = [];
+    let filteredItems = [];
+
+    const CONTINENT_GROUPS = {
+      "Asia": ["Bangladesh", "Bhutan", "Lao PDR", "Myanmar", "Thailand", "Timor-Leste"],
+      "Pacific": ["Fiji", "Papua New Guinea", "Solomon Islands", "Vanuatu"],
+      "Africa": ["Ethiopia", "Malawi", "Mozambique", "Nigeria", "Tunisia", "Uganda"],
+      "South America": ["Bolivia", "Colombia"]
+    };
+
+    document.getElementById("clear-filters").addEventListener("click", () => {
+      document.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = false);
+      textSearchInput.value = "";
+      filterAndRender();
+    });
+
+    function createFilterCheckbox(container, name, value) {
+      const id = `${name}-${value.replace(/\s+/g, '-')}`;
+      const label = document.createElement("label");
+      label.style.display = "block";
+      label.innerHTML = `<input type="checkbox" name="${name}" value="${value}" id="${id}"> ${value}`;
+      container.appendChild(label);
+    }
+
+    function getCheckedValues(name) {
+      return Array.from(document.querySelectorAll(`input[name='${name}']:checked`)).map(cb => cb.value);
+    }
+
+    function createCard(item) {
+      const sdgChips = item['Primary SDG Targets']
+        ? item['Primary SDG Targets'].split(',').map(sdg => `<calcite-chip appearance="outline" scale="s" icon="initiative">${sdg.trim()}</calcite-chip>`).join('')
+        : "";
+      const html = `
+        <div class="col-md-4 mb-4">
+          <calcite-card>
+            <img slot="thumbnail" alt="${item.Title}" src="${item.Image || 'https://placehold.co/600x400'}" loading="lazy">
+            <span slot="heading"><b>${item.Title}</b></span>
+            <span slot="description">
+              ${item.Functionalities || 'No description provided.'}<br>
+              <small><i>${item["Sub-Domain"] || ''} • ${item["Focus Area"] || ''}</i></small>
+            </span>
+            ${item["Focus Area"] ? `<calcite-chip appearance="outline" scale="s" icon="clustering">${item["Focus Area"]}</calcite-chip>` : ""}
+            <calcite-chip appearance="outline" scale="s" icon="layers">${item.Group || 'Tool'}</calcite-chip>
+            ${sdgChips}
+            <calcite-button label="Open ${item.Title}" icon-end="launch" slot="footer-end" target="_blank" width="full" href="${item.Link}">Open app</calcite-button>
+          </calcite-card>
+        </div>`;
+      cardContainer.insertAdjacentHTML("beforeend", html);
+    }
+
+    function renderPage() {
+      cardContainer.innerHTML = "";
+      const start = (pagination.startItem || 1) - 1;
+      const end = start + pageSize;
+      filteredItems.slice(start, end).forEach(item => createCard(item));
+    }
+
+    function filterAndRender() {
+      const searchText = textSearchInput.value.toLowerCase();
+      const selectedCountries = getCheckedValues("country");
+      const selectedDomains = getCheckedValues("domain");
+      const selectedSubdomains = getCheckedValues("subdomain");
+      const selectedPartners = getCheckedValues("partner");
+
+      filteredItems = allItems.filter(item => {
+        const matchSearch = !searchText || item.Title.toLowerCase().includes(searchText) || (item.Functionalities || '').toLowerCase().includes(searchText);
+        const matchCountry = selectedCountries.length ? selectedCountries.includes(item.Country) : true;
+        const matchDomain = selectedDomains.length ? selectedDomains.includes(item.Domain) : true;
+        const matchSub = selectedSubdomains.length ? selectedSubdomains.includes(item["Sub-Domain"]) : true;
+        const matchPartner = selectedPartners.length ? selectedPartners.includes(item.Partner) : true;
+        return matchSearch && matchCountry && matchDomain && matchSub && matchPartner;
+      });
+
+      pagination.startItem = 1;
+      pagination.totalItems = filteredItems.length;
+      pagination.style.visibility = filteredItems.length > pageSize ? "visible" : "hidden";
+      renderPage();
+    }
+
+    document.addEventListener("calcitePaginationChange", ({ target }) => {
+      renderPage();
+    });
+
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      complete: ({ data }) => {
+        allItems = data.filter(row => row.Country && row.Title && row.Link);
+
+        Object.entries(CONTINENT_GROUPS).forEach(([continent, countries]) => {
+          const group = document.createElement("details");
+          group.open = true;
+          group.innerHTML = `<summary>${continent}</summary>`;
+          countries.filter(c => allItems.some(item => item.Country === c)).sort().forEach(c => {
+            createFilterCheckbox(group, 'country', c);
+          });
+          countryContainer.appendChild(group);
+        });
+
+        const domainMap = new Map();
+        allItems.forEach(item => {
+          if (!domainMap.has(item.Domain)) domainMap.set(item.Domain, new Set());
+          if (item["Sub-Domain"]) domainMap.get(item.Domain).add(item["Sub-Domain"]);
+        });
+
+        domainMap.forEach((subs, domain) => {
+          const wrapper = document.createElement("details");
+          wrapper.open = true;
+          const summary = document.createElement("summary");
+          summary.textContent = domain;
+          const subContainer = document.createElement("div");
+          subContainer.classList.add("subdomain-container");
+          subs.forEach(sub => createFilterCheckbox(subContainer, 'subdomain', sub));
+          wrapper.appendChild(summary);
+          wrapper.appendChild(subContainer);
+          domainContainer.appendChild(wrapper);
+        });
+
+        [...new Set(allItems.map(item => item.Partner))].filter(Boolean).sort().forEach(p => createFilterCheckbox(partnerContainer, 'partner', p));
+
+        document.querySelectorAll("input[type='checkbox']").forEach(cb => cb.addEventListener("change", filterAndRender));
+        textSearchInput.addEventListener("input", filterAndRender);
+
+        filterAndRender();
+      }
+    });
+  </script>
+</body>
+
+</html>
