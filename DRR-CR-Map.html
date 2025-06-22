@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Map</title>
+  <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <!-- Esri-Leaflet for Esri services -->
+  <script src="https://unpkg.com/esri-leaflet@3.0.16/dist/esri-leaflet.js" crossorigin=""></script>
+
+  <!-- MarkerCluster CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.0/dist/MarkerCluster.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.0/dist/MarkerCluster.Default.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.0/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewDiv"></div>
+
+  <script>
+    // Initialize map
+    const map = L.map("viewDiv", {
+      center: [4.0615, 107.1807],
+      zoom: 4,
+      minZoom: 3,
+      maxZoom: 6,
+      attributionControl: false,
+      scrollWheelZoom: false,
+      maxBounds: [[-70, -180], [70, 200]],
+      maxBoundsViscosity: 1.0
+    });
+
+    // Add UN Clear Map basemap
+    L.esri.tiledMapLayer({
+      url: "https://geoservices.un.org/arcgis/rest/services/ClearMap_WebGray/MapServer",
+      attribution: ''
+    }).addTo(map);
+
+    // Custom attribution
+    L.control.attribution({ position: "bottomright", prefix: "" })
+      .addTo(map)
+      .addAttribution('Developed by <a href="https://unosat.org/" target="_blank">United Nations Satellite Centre (UNOSAT)</a>')
+      .addAttribution('Basemap by <a href="https://geoportal.un.org/arcgis/home/item.html?id=541557fd0d4d42efb24449be614e6887" target="_blank">United Nations Geospatial</a>');
+
+    // Define small icon for non-clustered markers
+    const smallIcon = L.icon({
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      iconSize: [20, 32],       // smaller size
+      iconAnchor: [10, 32],     // point of the icon which will correspond to marker's location
+      popupAnchor: [0, -28],
+      shadowSize: [32, 32],
+      shadowAnchor: [10, 32]
+    });
+
+    // Create marker cluster group
+    const markers = L.markerClusterGroup({
+      maxClusterRadius: 10,
+      iconCreateFunction: function(cluster) {
+        const count = cluster.getChildCount();
+        let size;
+        if (count < 5) size = 30;
+        else if (count < 10) size = 50;
+        else if (count < 15) size = 60;
+        else size = 80;
+        const fontSize = Math.floor(size / 2);
+        const html = `
+          <div style="background-color: rgba(62,142,222,0.4); border:3px solid #3E8EDE; border-radius:50%; width:${size}px; height:${size}px; display:flex; align-items:center; justify-content:center;">
+            <span style="color:#fff; font-weight:bold; font-size:${fontSize}px;">${count}</span>
+          </div>
+        `;
+        return L.divIcon({ html: html, className: '', iconSize: [size, size] });
+      }
+    });
+
+    // CSV URL and parsing
+    const csvUrl = "https://raw.githubusercontent.com/aonwittawat/UNOSAT-DRMCR/refs/heads/main/Geospatial%20Web%20Solutions.csv";
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        results.data.forEach(row => {
+          if (row.Latitude && row.Longitude) {
+            const imgUrl = row.Image || 'https://placehold.co/600x400';
+            const popupHtml = `
+              <strong>${row.Title||'No title'}</strong><br/>
+              <img src="${imgUrl}" alt="${row.Title||''}" style="width:100%; height:auto;"/>
+              <em>${row.Country||''}</em><br/>
+              <p>${row.Functionalities||''}</p>
+              ${row.Link?`<a href="${row.Link}" target="_blank">Open app</a>`:''}
+            `;
+            // Use smallIcon for individual markers
+            const marker = L.marker([row.Latitude, row.Longitude], { icon: smallIcon }).bindPopup(popupHtml);
+            markers.addLayer(marker);
+          }
+        });
+        map.addLayer(markers);
+      },
+      error: (err) => console.error('CSV load error:', err)
+    });
+  </script>
+</body>
+</html>
