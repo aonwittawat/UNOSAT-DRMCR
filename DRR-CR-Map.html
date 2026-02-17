@@ -61,7 +61,7 @@
     const smallIcon = L.icon({
       iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
       shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      iconSize: [20, 32],       // smaller size
+      iconSize: [30, 42],       // smaller size
       iconAnchor: [10, 32],     // point of the icon which will correspond to marker's location
       popupAnchor: [0, -28],
       shadowSize: [32, 32],
@@ -89,7 +89,7 @@
     });
 
     // CSV URL and parsing
-    const csvUrl = "https://raw.githubusercontent.com/aonwittawat/UNOSAT-DRMCR/refs/heads/main/Geospatial%20Web%20Solutions.csv";
+    const csvUrl = "Geospatial%20Web%20Solutions.csv";
     Papa.parse(csvUrl, {
       download: true,
       header: true,
